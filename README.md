@@ -31,4 +31,3 @@ Use `python temperature_collector.py --once` to collect one sample and exit.
 ## Source
 
 Weerplaza city pages provide current observations and the upcoming 48-hour forecast. This project reads those displayed values; if Weerplaza changes its page structure, collection logs a parse error in the Actions run log.
-
