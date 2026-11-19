@@ -5,6 +5,12 @@ on:
     # GitHub schedule uses UTC. Offset away from the top of the hour to reduce queue delays.
     - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch:
+    inputs:
+      rewrite_history:
+        description: Replace account-authored setup commits with a noreply identity
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -20,6 +26,24 @@ jobs:
     steps:
       - name: Check out the main branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove account email from commit history
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.rewrite_history }}
+        run: |
+          git checkout -B main origin/main
+          FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --env-filter '
+            if [ "$GIT_AUTHOR_NAME" = "BrandarisFlitsen" ]; then
+              export GIT_AUTHOR_NAME="Codex"
+              export GIT_AUTHOR_EMAIL="codex@users.noreply.github.com"
+            fi
+            if [ "$GIT_COMMITTER_NAME" = "BrandarisFlitsen" ]; then
+              export GIT_COMMITTER_NAME="Codex"
+              export GIT_COMMITTER_EMAIL="codex@users.noreply.github.com"
+            fi
+          ' main
+          git push --force-with-lease origin main:main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,9 +55,11 @@ jobs:
         run: python -m pip install -r requirements.txt
 
       - name: Collect current temperatures and due forecasts
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.rewrite_history }}
         run: python temperature_collector.py --once
 
       - name: Commit updated city data
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.rewrite_history }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -44,3 +70,4 @@ jobs:
             git commit -m "Record weather observations"
             git push
           fi
+
